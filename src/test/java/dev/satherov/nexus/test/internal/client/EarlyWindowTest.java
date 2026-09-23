@@ -9,7 +9,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 ///
 /// Checks that the early loading window gets turned off in the fml.toml of a game directory.
@@ -24,14 +23,14 @@ public class EarlyWindowTest {
 
     @Test
     public void existingKeyIsReplaced(@TempDir Path directory) throws IOException {
-        Path file = EarlyWindowTest.write(directory, "# FML config", "earlyWindowControl = true", "maxThreads = -1");
+        Path file = EarlyWindowTest.write(directory, "# FML config\nearlyWindowControl = true\nmaxThreads = -1\n");
         EarlyWindow.disable(directory.toFile());
-        Assertions.assertThat(Files.readAllLines(file)).containsExactly("# FML config", "earlyWindowControl = false", "maxThreads = -1");
+        Assertions.assertThat(Files.readString(file)).isEqualTo("# FML config\nearlyWindowControl = false\nmaxThreads = -1\n");
     }
 
     @Test
     public void missingKeyIsAdded(@TempDir Path directory) throws IOException {
-        Path file = EarlyWindowTest.write(directory, "maxThreads = -1", "versionCheck = true");
+        Path file = EarlyWindowTest.write(directory, "maxThreads = -1\nversionCheck = true\n");
         EarlyWindow.disable(directory.toFile());
         Assertions.assertThat(Files.readAllLines(file))
                 .hasSize(3)
@@ -39,8 +38,27 @@ public class EarlyWindowTest {
                 .containsSubsequence("maxThreads = -1", "versionCheck = true");
     }
 
-    private static Path write(Path directory, String... lines) throws IOException {
+    @Test
+    public void existingKeyIsReplacedKeepingCrlf(@TempDir Path directory) throws IOException {
+        Path file = EarlyWindowTest.write(directory, "# FML config\r\nearlyWindowControl = true\r\nmaxThreads = -1\r\n");
+        EarlyWindow.disable(directory.toFile());
+        Assertions.assertThat(Files.readString(file)).isEqualTo("# FML config\r\nearlyWindowControl = false\r\nmaxThreads = -1\r\n");
+    }
+
+    @Test
+    public void missingKeyIsAddedKeepingCrlf(@TempDir Path directory) throws IOException {
+        Path file = EarlyWindowTest.write(directory, "maxThreads = -1\r\nversionCheck = true\r\n");
+        EarlyWindow.disable(directory.toFile());
+        String content = Files.readString(file);
+        Assertions.assertThat(content.split("\r\n"))
+                .hasSize(3)
+                .containsOnlyOnce("earlyWindowControl = false")
+                .containsSubsequence("maxThreads = -1", "versionCheck = true");
+        Assertions.assertThat(content).endsWith("\r\n");
+    }
+
+    private static Path write(Path directory, String content) throws IOException {
         Path config = Files.createDirectories(directory.resolve("config"));
-        return Files.write(config.resolve("fml.toml"), List.of(lines));
+        return Files.writeString(config.resolve("fml.toml"), content);
     }
 }

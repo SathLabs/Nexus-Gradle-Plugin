@@ -5,9 +5,13 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.jspecify.annotations.Nullable;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Objects;
 
 ///
 /// A build service that runs a virtual screen through Xvfb.
@@ -32,7 +36,7 @@ public abstract class XvfbDisplay implements BuildService<BuildServiceParameters
     private static final int LAST_DISPLAY = 198;
 
     ///
-    /// The number of milliseconds Xvfb is given to take its display.
+    /// The number of milliseconds Xvfb is given to write its display number.
     ///
     private static final long START_TIMEOUT = 10_000L;
 
@@ -47,107 +51,102 @@ public abstract class XvfbDisplay implements BuildService<BuildServiceParameters
     private @Nullable String display;
 
     ///
-    /// The display of a virtual screen, `:99` or the first free number above it, started at 1920x1080 on the first
-    /// call and reused afterwards.
+    /// The display of a virtual screen, `:99` or the next free number above it, started at 1920x1080 on the first call
+    /// and reused afterwards.
     ///
     /// @return The display of the virtual screen.
     ///
-    /// @throws GradleException If no display from `:99` to `:198` is free or Xvfb does not start.
+    /// @throws GradleException If the operating system is not Linux, Xvfb is not on `PATH`, no display from `:99`
+    ///                         to `:198` is free, or it does not start.
     ///
     public synchronized String display() {
         if (this.display != null) {
             return this.display;
         }
 
+        String system = System.getProperty("os.name", "");
+        if (!system.startsWith("Linux")) {
+            throw new GradleException("The hidden window of the client needs no Xvfb on '" + system + "', so '-Pxvfb' is not needed");
+        }
+
+        Path xvfb = Arrays.stream(Objects.requireNonNullElse(System.getenv("PATH"), "").split(File.pathSeparator))
+                .map(directory -> Path.of(directory, "Xvfb"))
+                .filter(candidate -> Files.isRegularFile(candidate) && Files.isExecutable(candidate))
+                .findFirst()
+                .orElseThrow(() -> new GradleException("Could not find 'Xvfb' on 'PATH'"));
+
         for (int number = XvfbDisplay.FIRST_DISPLAY; number <= XvfbDisplay.LAST_DISPLAY; number++) {
-            if (Files.exists(XvfbDisplay.lock(number)) || Files.exists(XvfbDisplay.socket(number))) {
+            if (Files.exists(Path.of("/tmp/.X" + number + "-lock")) || Files.exists(Path.of("/tmp/.X11-unix/X" + number))) {
                 continue;
             }
 
-            String name = ":" + number;
+            String display = ":" + number;
             Process screen;
             try {
-                screen = new ProcessBuilder("Xvfb", name, "-screen", "0", "1920x1080x24").inheritIO().start();
+                screen = new ProcessBuilder(xvfb.toString(), display, "-displayfd", "1", "-screen", "0", "1920x1080x24").redirectError(ProcessBuilder.Redirect.INHERIT).start();
             } catch (IOException exception) {
-                throw new GradleException("Could not start Xvfb on '" + name + "'", exception);
+                throw new GradleException("Could not start '" + xvfb + "'", exception);
             }
 
-            if (XvfbDisplay.awaitStart(screen, number)) {
-                this.screen = screen;
-                this.display = name;
-                return name;
+            String reported = XvfbDisplay.awaitNumber(screen, display);
+            // If Xvfb exits without writing the number, another server took the display after the check.
+            if (reported == null) {
+                continue;
             }
 
-            screen.destroy();
+            if (!reported.equals(String.valueOf(number))) {
+                screen.destroy();
+                throw new GradleException("Could not start Xvfb on '" + display + "', it wrote '" + reported + "' as its display");
+            }
+
+            this.screen = screen;
+            this.display = display;
+            return display;
         }
 
         throw new GradleException("Could not start Xvfb on any display from ':" + XvfbDisplay.FIRST_DISPLAY + "' to ':" + XvfbDisplay.LAST_DISPLAY + "'");
     }
 
     ///
-    /// Waits until the given screen holds the lock file and the socket of the given display number.
+    /// Waits until the given screen writes the number of its display.
     ///
-    /// Stops once it does, or immediately if the screen exits or {@value #START_TIMEOUT} milliseconds have passed.
+    /// Stops once it does, or immediately if the screen exits.
     ///
-    /// @param screen The Xvfb process to wait for.
-    /// @param number The number of the display.
-    /// @return `true` if the screen holds the display.
+    /// If this throws, the screen will be stopped.
     ///
-    /// @throws GradleException If the thread is interrupted while waiting.
+    /// @param screen  The Xvfb process to wait for.
+    /// @param display The display the screen was started on, used in the failure message.
+    /// @return The number the screen wrote, or `null` if it exited first.
     ///
-    private static boolean awaitStart(Process screen, int number) {
-        Path lock = XvfbDisplay.lock(number);
-        Path socket = XvfbDisplay.socket(number);
+    /// @throws GradleException If the screen writes nothing for {@value #START_TIMEOUT} milliseconds, its output could not
+    ///                         be read, or the thread is interrupted while waiting.
+    ///
+    private static @Nullable String awaitNumber(Process screen, String display) {
         long deadline = System.currentTimeMillis() + XvfbDisplay.START_TIMEOUT;
-        while (screen.isAlive() && System.currentTimeMillis() < deadline) {
-            // Another build may have started a screen on this display first, and its socket would be there too.
-            if (Files.exists(socket) && XvfbDisplay.holdsLock(screen, lock)) {
-                return true;
-            }
+        try (BufferedReader output = screen.inputReader()) {
+            while (System.currentTimeMillis() < deadline) {
+                // Xvfb writes the line break right after the number, so a started line is read to its end.
+                if (output.ready()) {
+                    return Objects.requireNonNullElse(output.readLine(), "").strip();
+                }
 
-            try {
+                if (!screen.isAlive()) {
+                    return null;
+                }
+
                 Thread.sleep(50L);
-            } catch (InterruptedException exception) {
-                screen.destroy();
-                Thread.currentThread().interrupt();
-                throw new GradleException("Could not start Xvfb on ':" + number + "'", exception);
             }
+        } catch (IOException exception) {
+            screen.destroy();
+            throw new GradleException("Could not start Xvfb on '" + display + "'", exception);
+        } catch (InterruptedException exception) {
+            screen.destroy();
+            Thread.currentThread().interrupt();
+            throw new GradleException("Could not start Xvfb on '" + display + "'", exception);
         }
 
-        return false;
-    }
-
-    ///
-    /// @param screen The Xvfb process.
-    /// @param lock   The lock file of a display.
-    /// @return `true` if the lock file holds the pid of the screen.
-    ///
-    private static boolean holdsLock(Process screen, Path lock) {
-        try {
-            return Long.parseLong(Files.readString(lock).strip()) == screen.pid();
-        } catch (IOException | NumberFormatException exception) {
-            return false;
-        }
-    }
-
-    ///
-    /// The lock file an X server holds for the given display number.
-    ///
-    /// @param number The number of the display.
-    /// @return The lock file of the display.
-    ///
-    private static Path lock(int number) {
-        return Path.of("/tmp/.X" + number + "-lock");
-    }
-
-    ///
-    /// The socket Xvfb opens for the given display number.
-    ///
-    /// @param number The number of the display.
-    /// @return The socket of the display.
-    ///
-    private static Path socket(int number) {
-        return Path.of("/tmp/.X11-unix/X" + number);
+        screen.destroy();
+        throw new GradleException("Could not start Xvfb on '" + display + "', it did not write its display within '" + XvfbDisplay.START_TIMEOUT + "' milliseconds");
     }
 
     ///

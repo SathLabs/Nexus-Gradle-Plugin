@@ -22,6 +22,8 @@ pluginManagement {
 }
 ```
 
+The plugin comes from `maven.satherov.dev`, and `gradlePluginPortal()` is there for moddev.
+
 In `build.gradle`, together with moddev:
 
 ```groovy

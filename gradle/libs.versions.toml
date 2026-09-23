@@ -6,7 +6,6 @@ junit = "5.14.1"
 moddev = "2.0.147"
 
 lombok = "9.5.0"
-plugin-publish = "2.2.1"
 
 [libraries]
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
@@ -19,4 +18,3 @@ moddev = { module = "net.neoforged:moddev-gradle", version.ref = "moddev" }
 
 [plugins]
 lombok = { id = "io.freefair.lombok", version.ref = "lombok" }
-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "plugin-publish" }

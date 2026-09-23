@@ -1,0 +1,19 @@
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+.run/
+.vscode/
+.DS_Store
+
+# Instruction files of the agent process, per project and never shared.
+CLAUDE.md
+agents/
+docs/
+notes/

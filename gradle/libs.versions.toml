@@ -1,0 +1,20 @@
+[versions]
+assertj = "3.27.7"
+jetbrains-annotations = "26.0.2"
+jspecify = "1.0.0"
+junit = "5.14.1"
+moddev = "2.0.147"
+
+lombok = "9.5.0"
+
+[libraries]
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+moddev = { module = "net.neoforged:moddev-gradle", version.ref = "moddev" }
+
+[plugins]
+lombok = { id = "io.freefair.lombok", version.ref = "lombok" }

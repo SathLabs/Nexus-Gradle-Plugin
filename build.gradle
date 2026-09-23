@@ -1,0 +1,54 @@
+plugins {
+    id 'idea'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    alias(libs.plugins.lombok)
+}
+
+version = plugin_version
+group = 'dev.satherov.nexus.gradle-plugin'
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+}
+
+// The plugin runs inside the consumer's Gradle daemon, which Gradle 9 lets be any JDK from 17 up, so the classes
+// target 17 and the sources use nothing newer.
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}
+
+gradlePlugin {
+    plugins {
+        nexus {
+            id = 'dev.satherov.nexus.gradle-plugin'
+            implementationClass = 'dev.satherov.nexus.gradle.NexusGradlePlugin'
+            displayName = 'Nexus'
+            description = 'Gametest runs for a mod that tests with the Nexus gametest harness.'
+        }
+    }
+}
+
+dependencies {
+    compileOnly libs.moddev
+    compileOnly libs.jspecify
+    compileOnly libs.jetbrains.annotations
+
+    testImplementation libs.moddev
+    testImplementation libs.jspecify
+    testImplementation libs.assertj.core
+
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}

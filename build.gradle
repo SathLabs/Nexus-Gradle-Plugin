@@ -3,6 +3,7 @@ plugins {
     id 'java-gradle-plugin'
     id 'maven-publish'
     alias(libs.plugins.lombok)
+    alias(libs.plugins.plugin.publish)
 }
 
 version = plugin_version
@@ -31,6 +32,7 @@ gradlePlugin {
             implementationClass = 'dev.satherov.nexus.gradle.NexusGradlePlugin'
             displayName = 'Nexus'
             description = 'Gametest runs for a mod that tests with the Nexus gametest harness.'
+            tags = ['minecraft', 'neoforge', 'gametest']
         }
     }
 }

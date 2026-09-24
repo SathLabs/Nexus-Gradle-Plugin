@@ -220,7 +220,7 @@ public class NexusGradlePluginTest {
     public void failsAfterEvaluationWithoutModId() {
         Assertions.assertThatThrownBy(NexusGradlePluginTest::evaluated)
                 .rootCause()
-                .hasMessage("Could not add the gametests to a mod, 'nexusGametest.modId' is needed since moddev knows '0' mods");
+                .hasMessage("Could not add gametests to any mod, 'nexusGametest.modId' must be specified because moddev knows '0' mods instead of exactly one.");
     }
 
     @Test

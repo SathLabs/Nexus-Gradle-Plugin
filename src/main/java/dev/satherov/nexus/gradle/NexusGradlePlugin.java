@@ -15,27 +15,35 @@ import org.gradle.api.tasks.SourceSetContainer;
 import java.util.SortedSet;
 
 ///
-/// A plugin that adds a gametest source set and the gametest runs to a mod built with moddev.
+/// The gradle plugin to go along with the nexus library.
 ///
 public class NexusGradlePlugin implements Plugin<Project> {
-
+    
     ///
     /// The identifier of the moddev plugin.
     ///
-    private static final String MODDEV = "net.neoforged.moddev";
-
+    private static final String MOD_DEV = "net.neoforged.moddev";
+    
     ///
-    /// Creates the `nexusGametest` extension.
+    /// Creates all extensions of this plugin.
     ///
-    /// Once moddev is applied, this creates the `gametest` source set and registers the runs.
-    /// After evaluation, this wires the chosen source set into the mod with the harness.
-    ///
-    /// Fails the build after evaluation if moddev was never applied.
-    ///
-    /// @param project The project the plugin is applied to.
+    /// @param project The project that the plugins are applied to.
     ///
     @Override
     public void apply(Project project) {
+        NexusGradlePlugin.nexusGametest(project);
+    }
+    
+    ///
+    /// Creates the nexus gametest extension.
+    ///
+    /// Creates the gametest source set and configures the set mod with the harness.
+    ///
+    /// Will fail the build if moddev was never applied.
+    ///
+    /// @param project The project that the plugins are applied to.
+    ///
+    private static void nexusGametest(Project project) {
         NexusGametestExtension extension = project.getExtensions().create(NexusGametestExtension.NAME, NexusGametestExtension.class);
         extension.getGoldens().convention(project.getLayout().dir(extension.getSourceSet().map(sourceSet -> sourceSet.getResources().getSrcDirs().iterator().next())));
         
@@ -43,7 +51,7 @@ public class NexusGradlePlugin implements Plugin<Project> {
         harness.capabilities(capabilities -> capabilities.requireCapability("dev.satherov.nexus:nexus-gametest"));
         extension.getHarness().convention(harness);
         
-        project.getPluginManager().withPlugin(NexusGradlePlugin.MODDEV, moddev -> {
+        project.getPluginManager().withPlugin(NexusGradlePlugin.MOD_DEV, moddev -> {
             NeoForgeExtension neoForge = project.getExtensions().getByType(NeoForgeExtension.class);
             extension.getSourceSet().convention(project.getExtensions().getByType(SourceSetContainer.class).create("gametest"));
             extension.getModId().convention(project.provider(() -> {
@@ -55,10 +63,10 @@ public class NexusGradlePlugin implements Plugin<Project> {
         });
         
         project.afterEvaluate(evaluated -> {
-            if (!evaluated.getPluginManager().hasPlugin(NexusGradlePlugin.MODDEV)) {
-                throw new GradleException("Could not set up the gametests, the plugin '" + NexusGradlePlugin.MODDEV + "' was never applied");
+            if (!evaluated.getPluginManager().hasPlugin(NexusGradlePlugin.MOD_DEV)) {
+                throw new GradleException("Could not set up the gametests, the plugin '" + NexusGradlePlugin.MOD_DEV + "' was never applied");
             }
-
+            
             HarnessDependency.add(evaluated, evaluated.getExtensions().getByType(NeoForgeExtension.class), extension);
         });
     }

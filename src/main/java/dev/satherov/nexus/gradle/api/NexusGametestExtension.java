@@ -6,53 +6,49 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.SourceSet;
 
 ///
-/// An extension that configures the gametests of a mod and the harness they run with.
+/// An extension to configure the nexus gametests of a mod depending on it.
 ///
 public abstract class NexusGametestExtension {
-
+    
     ///
-    /// The name the extension is registered under.
+    /// The name that the extension is registered under.
     ///
     public static final String NAME = "nexusGametest";
-
+    
     ///
-    /// The identifier of the mod the gametests belong to.
+    /// The identifier of the mod that the gametests belong to.
     ///
-    /// Defaults to the only mod moddev knows.
+    /// Defaults to the first mod that moddev knows.
     ///
-    /// Required if moddev knows several mods.
-    /// If moddev knows none and this is unset, the build will fail after evaluation.
+    /// If moddev knows multiple mods or none, this must be set or the build will fail.
     ///
     /// @return The identifier of the mod the gametests belong to.
     ///
     public abstract Property<String> getModId();
-
+    
     ///
-    /// The source set the gametests live in.
+    /// The source set that the gametests are placed in.
     ///
-    /// Defaults to the `gametest` source set the plugin creates when applied.
-    ///
-    /// The chosen set is compiled against `main` and the harness and added to the mod.
-    /// If the build script adds it to a mod as well, moddev will fail on the duplicate source set.
+    /// Defaults to a `gametest` source set created by the plugin.
     ///
     /// @return The source set the gametests live in.
     ///
     public abstract Property<SourceSet> getSourceSet();
-
+    
     ///
-    /// The directory `-Precord` writes goldens into.
+    /// The directory that `-Precord` writes the goldens into.
     ///
     /// Defaults to the resources directory of the source set.
     ///
-    /// @return The directory `-Precord` writes goldens into.
+    /// @return The directory that `-Precord` writes the goldens into.
     ///
     public abstract DirectoryProperty getGoldens();
-
+    
     ///
     /// The harness dependency added to the source set.
     ///
-    /// Defaults to `dev.satherov.nexus:nexus` without a version and with the `dev.satherov.nexus:nexus-gametest`
-    /// capability, so the version is the one of the project's own nexus dependency.
+    /// Defaults to `dev.satherov.nexus:nexus` with the `dev.satherov.nexus:nexus-gametest` capability.
+    /// Does not set a version itself, so the implementing mod must set one itself.
     ///
     /// @return The harness dependency added to the source set.
     ///

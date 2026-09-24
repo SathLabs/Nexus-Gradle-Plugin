@@ -133,6 +133,13 @@ public class NexusGradlePluginTest {
     }
 
     @Test
+    public void onlyClientRunOverridesMainClass() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getMainClass().get()).isEqualTo("dev.satherov.nexus.gametest.GametestClient");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestServer").getMainClass().isPresent()).isFalse();
+    }
+
+    @Test
     public void selectorReachesBothRuns() {
         Project project = NexusGradlePluginTest.project(Map.of("tests", "sample"));
         RunModel server = NexusGradlePluginTest.run(project, "gameTestServer");

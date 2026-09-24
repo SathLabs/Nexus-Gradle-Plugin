@@ -29,17 +29,22 @@ import java.util.stream.Stream;
 ///
 @UtilityClass
 public class GametestRuns {
-
+    
     ///
     /// The system property with the path to place the report file of the run at.
     ///
     private static final String REPORT = "nexus.gametest.report";
-
+    
     ///
     /// The name of the project property that puts the client run on a virtual screen.
     ///
     private static final String XVFB = "xvfb";
-
+    
+    ///
+    /// The main class of the client run.
+    ///
+    private static final String CLIENT_MAIN_CLASS = "dev.satherov.nexus.gametest.GametestClient";
+    
     ///
     /// Registers the `gameTestServer` and `gameTestClient` runs on moddev, each with:
     /// - Its game directory, `runs/gametest` or `runs/gametest-client`.
@@ -53,6 +58,7 @@ public class GametestRuns {
     ///
     /// The client run also gets `nexus.gametest.goldens` from `-Pgoldens` or else the directory of the extension, and
     /// under `-Pxvfb` the display of [XvfbDisplay].
+    /// The main class of the client run is `dev.satherov.nexus.gametest.GametestClient`.
     ///
     /// @param project   The project to register the runs in.
     /// @param neoForge  The moddev extension of the project.
@@ -70,24 +76,25 @@ public class GametestRuns {
         if (selector != null) {
             server.getProgramArguments().addAll("--tests", selector);
         }
-
+        
         RunModel client = neoForge.getRuns().create("gameTestClient");
         client.client();
+        client.getMainClass().set(GametestRuns.CLIENT_MAIN_CLASS);
         client.getGameDirectory().set(project.getLayout().getProjectDirectory().dir("runs/gametest-client"));
         GametestRuns.configure(project, extension, client, "client");
         if (RunProperty.GOLDENS.value(project) == null) {
             client.getSystemProperties().put(RunProperty.GOLDENS.key(), extension.getGoldens().map(goldens -> goldens.getAsFile().getAbsolutePath()));
         }
-
+        
         if (!project.hasProperty(GametestRuns.XVFB)) {
             return;
         }
-
+        
         Provider<XvfbDisplay> xvfb = project.getGradle().getSharedServices().registerIfAbsent(XvfbDisplay.NAME, XvfbDisplay.class);
         client.getEnvironment().put("DISPLAY", xvfb.map(XvfbDisplay::display));
         GametestRuns.task(project, client).configureEach(task -> task.usesService(xvfb));
     }
-
+    
     ///
     /// Gives the given run what both runs share.
     ///
@@ -106,12 +113,12 @@ public class GametestRuns {
                 run.getSystemProperties().put(property.key(), value);
             }
         }
-
+        
         GametestRuns.task(project, run).configureEach(task -> task.doFirst(running -> GametestRuns.empty(reports.get().getAsFile())));
     }
-
+    
     ///
-    /// The task moddev registers for the given run, once it does.
+    /// The task moddev registers for the given run.
     ///
     /// @param project The project the run is registered in.
     /// @param run     The run to get the task of.
@@ -122,13 +129,13 @@ public class GametestRuns {
         String name = "run" + run.getName().substring(0, 1).toUpperCase(Locale.ROOT) + run.getName().substring(1);
         return project.getTasks().named(name::equals);
     }
-
+    
     ///
     /// Deletes everything inside the given directory, creating the directory if it is missing.
     ///
-    /// @param directory The directory to empty.
+    /// @param directory The directory to clear.
     ///
-    /// @throws UncheckedIOException If the directory could not be created or anything inside it could not be deleted.
+    /// @throws UncheckedIOException If the directory could not be created, or anything inside it could not be deleted.
     ///
     private static void empty(File directory) {
         try (Stream<Path> paths = Files.walk(Files.createDirectories(directory.toPath()))) {

@@ -18,8 +18,6 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
-// The plugin runs inside the consumer's Gradle daemon, which Gradle 9 lets be any JDK from 17 up, so the classes
-// target 17 and the sources use nothing newer.
 tasks.withType(JavaCompile).configureEach {
     options.release = 17
 }

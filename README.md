@@ -1,11 +1,6 @@
 # Nexus Gradle plugin
 
-A Gradle plugin that sets up gametests for a NeoForge mod built with moddev and tested with the Nexus gametest harness.
-
-It adds to the project:
-
-- A `gametest` source set, compiled against `main` and the harness and added to the mod.
-- Two moddev runs, `gameTestServer` and `gameTestClient`, started with `runGameTestServer` and `runGameTestClient`.
+A Gradle plugin to go along the nexus minecraft library.
 
 ## Setup
 
@@ -22,9 +17,7 @@ pluginManagement {
 }
 ```
 
-The plugin comes from `maven.satherov.dev`, and `gradlePluginPortal()` is there for moddev.
-
-In `build.gradle`, together with moddev:
+In `build.gradle`:
 
 ```groovy
 plugins {
@@ -33,59 +26,90 @@ plugins {
 }
 ```
 
-The harness has no version of its own and takes the one of the project's `dev.satherov.nexus:nexus` dependency.
-
 ## Configuration
 
-Everything is configured in the `nexus` block:
-
+Example config
 ```groovy
 nexus {
-    ops = ['Dev', 'Satherov']
+    // The players that will be automatically opped when joining a dev server.
+    ops = ['Dev']
+
     gametest {
+        // The mod that the gametests belong to. Needed only when more than one mod is declared to mod dev.
         modId = 'examplemod'
-        goldens = file('src/gametest/goldens')
+
+        // The source set the gametests live in.
+        sourceSet = sourceSets.gametest
+
+        // The directory -Precord writes golden images into.
+        goldens = file('src/gametest/resources')
+
+        // The harness dependency. Defaults to the project's own nexus dependency with the gametest capability.
+        harness = dependencies.create('dev.satherov.nexus:nexus:1.0.0') {
+            capabilities {
+                requireCapability('dev.satherov.nexus:nexus-gametest')
+            }
+        }
     }
 }
 ```
+### Ops
 
-`ops` holds the names of the players every dev server makes an operator when they log in. Defaults to `Dev`. An empty
-list ops nobody. Every moddev run gets the names as the system property `nexus.dev.ops`, comma separated.
+The ops section will simply op any player with the given name joining a dev server. By default, the list will only contain `Dev`.
+Exists for convenience, so you don't have to manually op yourself when testing on a dev server.
 
-Every moddev run uses `runs/<run name>` as its game directory unless the build script sets one, so the `client` run
-runs in `runs/client`. The gametest runs use `runs/gametest` and `runs/gametest-client`.
+### Runs
 
-The `gametest` block has four properties:
+All mod dev runs will use `runs/<name>` as their default directory, unless explicitly overwritten.
+Exists so not all runs will be mushed into the same `run` directory.
 
-- `modId`: The identifier of the mod the gametests belong to. Defaults to the only mod moddev knows, and is required if
-  moddev knows several.
-- `sourceSet`: The source set the gametests live in. Defaults to the `gametest` source set the plugin creates. The
-  plugin compiles it against `main` and the harness and adds it to the mod, so the build script must not add it to a
-  mod itself.
-- `goldens`: The directory `-Precord` writes golden images into. Defaults to the resources directory of the source set.
-- `harness`: The harness dependency. Defaults to `dev.satherov.nexus:nexus` with the `dev.satherov.nexus:nexus-gametest`
-  capability and no version.
+### Gametests
 
-## Running
+The plugin will automatically configure two gametest runs for you, `runGameTestServer` and `runGameTestClient`.
 
+Additionally, it will setup the `gametest` source set for your gametest to run in.
+
+The gametest harness itself has no version and takes that of the project's `dev.satherov.nexus:nexus` dependency.
+
+
+**Properties:**
+
+- `modId`: 
+  - The identifier that the mod that wants to use the gametests belongs to
+  - Defaults to the first and only mod that mod dev knows.. By default this will be the first and only mod that moddev knows. 
+  - Is required if there are multiple mods declared.
+- `sourceSet`:
+  - The source set that the gametests live in.
+  - Defaults to the `gametest` source set that the plugin creates.
+  - Compiles against the `main` source set and then adds itself to the mod.
+- `goldens`:
+  - The directory that `-Precord` writes the golden images in.
+  - Defaults to the resource directory of the gametest source set.
+- `harness`: 
+  - The harness dependency.
+  - Defaults to `dev.satherov.nexus:nexus` with the `dev.satherov.nexus:nexus-gametest` capability.
+
+## Gametests
+
+Run the server or client tests via one of the two gradle commands.
 ```
 ./gradlew runGameTestServer
 ./gradlew runGameTestClient
 ```
 
-The runs take these project properties:
+The following arguments are available:
 
-| Property             | Effect                                                                                        |
-|----------------------|-----------------------------------------------------------------------------------------------|
-| `-Ptests=<selector>` | Runs only the tests the selector matches. A selector without a namespace gets `*:` in front.  |
-| `-Prealtime`         | Runs the tests in real time.                                                                  |
-| `-Pshow`             | Shows the client window, which is hidden by default.                                          |
-| `-Pcompare=<path>`   | Compares the measurements against the file at the given path.                                 |
-| `-Pgoldens=<dir>`    | The directory golden images are written into. Overrides `nexus.gametest.goldens` for the run. |
-| `-Precord`           | Records golden images instead of comparing against them.                                      |
-| `-Pxvfb`             | Runs the client on a virtual X screen. Needs Xvfb installed.                                  |
+| Property             | Description                                                                                             |
+|----------------------|---------------------------------------------------------------------------------------------------------|
+| `-Ptests=<selector>` | Specifies the identifiers of the tests to run. `*` can be used for wildcard matching.                   |
+| `-Prealtime`         | Runs the tests in real time, where usually the game will sprint as fast as it can.                      |
+| `-Pshow`             | Shows the client window, which is not rendered by default.                                              |
+| `-Pcompare=<path>`   | Compares the performance measurements against the file in the given path.                               |
+| `-Pgoldens=<dir>`    | The directory that the golden images are written into. Overrides the `nexus.gametest.goldens` property. |
+| `-Precord`           | Records the golden images instead of checking them.                                                     |
+| `-Pxvfb`             | Runs the client on a virtual X screen. Needs Xvfb installed. Will not work on a non linux system.       |
 
-Paths are relative to the project directory.
+All paths are relative to the project directory.
 
-The server run writes its report to `build/reports/gametest/server/server.xml`, the client run to
-`build/reports/gametest/client/client.xml`.
+The server report is written into `build/reports/gametest/server/server.xml`.
+The client report is written into `build/reports/gametest/client/client.xml`.

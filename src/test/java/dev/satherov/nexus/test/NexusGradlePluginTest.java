@@ -225,7 +225,6 @@ public class NexusGradlePluginTest {
         NexusGradlePluginTest.runFirstActions(project, "runGameTestClient");
         Assertions.assertThat(stale).doesNotExist();
         Assertions.assertThat(stale.getParentFile()).isDirectory();
-        Assertions.assertThat(project.file("runs/gametest-client/config/fml.toml")).content().contains("earlyWindowControl = false");
     }
 
     @Test

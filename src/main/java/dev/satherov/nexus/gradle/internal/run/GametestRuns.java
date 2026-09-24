@@ -3,7 +3,6 @@ package dev.satherov.nexus.gradle.internal.run;
 import lombok.experimental.UtilityClass;
 
 import dev.satherov.nexus.gradle.api.NexusGametestExtension;
-import dev.satherov.nexus.gradle.internal.client.EarlyWindow;
 import dev.satherov.nexus.gradle.internal.client.XvfbDisplay;
 
 import net.neoforged.moddevgradle.dsl.NeoForgeExtension;
@@ -12,7 +11,6 @@ import net.neoforged.moddevgradle.dsl.RunModel;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.Directory;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskCollection;
 
@@ -53,8 +51,8 @@ public class GametestRuns {
     /// The server run also gets `neoforge.enableGameTest`, and `--report <path>` and, if a selector is given,
     /// `--tests <selector>` as program arguments.
     ///
-    /// The client run also gets `nexus.gametest.goldens` from `-Pgoldens` or else the directory of the extension, the
-    /// early window switch, and under `-Pxvfb` the display of [XvfbDisplay].
+    /// The client run also gets `nexus.gametest.goldens` from `-Pgoldens` or else the directory of the extension, and
+    /// under `-Pxvfb` the display of [XvfbDisplay].
     ///
     /// @param project   The project to register the runs in.
     /// @param neoForge  The moddev extension of the project.
@@ -81,16 +79,13 @@ public class GametestRuns {
             client.getSystemProperties().put(RunProperty.GOLDENS.key(), extension.getGoldens().map(goldens -> goldens.getAsFile().getAbsolutePath()));
         }
 
-        DirectoryProperty gameDirectory = client.getGameDirectory();
-        TaskCollection<Task> clientTask = GametestRuns.task(project, client);
-        clientTask.configureEach(task -> task.doFirst(running -> EarlyWindow.disable(gameDirectory.get().getAsFile())));
         if (!project.hasProperty(GametestRuns.XVFB)) {
             return;
         }
 
         Provider<XvfbDisplay> xvfb = project.getGradle().getSharedServices().registerIfAbsent(XvfbDisplay.NAME, XvfbDisplay.class);
         client.getEnvironment().put("DISPLAY", xvfb.map(XvfbDisplay::display));
-        clientTask.configureEach(task -> task.usesService(xvfb));
+        GametestRuns.task(project, client).configureEach(task -> task.usesService(xvfb));
     }
 
     ///

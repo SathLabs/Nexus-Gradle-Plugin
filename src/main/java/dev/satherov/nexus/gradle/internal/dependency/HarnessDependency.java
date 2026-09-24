@@ -2,7 +2,8 @@ package dev.satherov.nexus.gradle.internal.dependency;
 
 import lombok.experimental.UtilityClass;
 
-import dev.satherov.nexus.gradle.api.NexusGametestExtension;
+import dev.satherov.nexus.gradle.api.GametestExtension;
+import dev.satherov.nexus.gradle.api.NexusExtension;
 
 import net.neoforged.moddevgradle.dsl.NeoForgeExtension;
 
@@ -34,10 +35,10 @@ public class HarnessDependency {
     ///
     /// @throws GradleException If the extension has no mod identifier.
     ///
-    public static void add(Project project, NeoForgeExtension neoForge, NexusGametestExtension extension) {
+    public static void add(Project project, NeoForgeExtension neoForge, GametestExtension extension) {
         String modId = extension.getModId().getOrNull();
         if (modId == null) {
-            throw new GradleException("Could not add gametests to any mod, '" + NexusGametestExtension.NAME + ".modId' must be specified because moddev knows '" + neoForge.getMods().size() + "' mods instead of exactly one.");
+            throw new GradleException("Could not add gametests to any mod, '" + NexusExtension.NAME + ".gametest.modId' must be specified because moddev knows '" + neoForge.getMods().size() + "' mods instead of exactly one.");
         }
         
         SourceSet main = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);

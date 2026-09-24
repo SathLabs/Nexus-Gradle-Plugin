@@ -8,12 +8,9 @@ import org.gradle.api.tasks.SourceSet;
 ///
 /// An extension to configure the nexus gametests of a mod depending on it.
 ///
-public abstract class NexusGametestExtension {
-    
-    ///
-    /// The name that the extension is registered under.
-    ///
-    public static final String NAME = "nexusGametest";
+/// @see NexusExtension#getGametest()
+///
+public abstract class GametestExtension {
     
     ///
     /// The identifier of the mod that the gametests belong to.

@@ -37,7 +37,25 @@ The harness has no version of its own and takes the one of the project's `dev.sa
 
 ## Configuration
 
-The `nexusGametest` block has four properties:
+Everything is configured in the `nexus` block:
+
+```groovy
+nexus {
+    ops = ['Dev', 'Satherov']
+    gametest {
+        modId = 'examplemod'
+        goldens = file('src/gametest/goldens')
+    }
+}
+```
+
+`ops` holds the names of the players every dev server makes an operator when they log in. Defaults to `Dev`. An empty
+list ops nobody. Every moddev run gets the names as the system property `nexus.dev.ops`, comma separated.
+
+Every moddev run uses `runs/<run name>` as its game directory unless the build script sets one, so the `client` run
+runs in `runs/client`. The gametest runs use `runs/gametest` and `runs/gametest-client`.
+
+The `gametest` block has four properties:
 
 - `modId`: The identifier of the mod the gametests belong to. Defaults to the only mod moddev knows, and is required if
   moddev knows several.
@@ -48,13 +66,6 @@ The `nexusGametest` block has four properties:
 - `harness`: The harness dependency. Defaults to `dev.satherov.nexus:nexus` with the `dev.satherov.nexus:nexus-gametest`
   capability and no version.
 
-```groovy
-nexusGametest {
-    modId = 'examplemod'
-    goldens = file('src/gametest/goldens')
-}
-```
-
 ## Running
 
 ```
@@ -64,15 +75,15 @@ nexusGametest {
 
 The runs take these project properties:
 
-| Property             | Effect                                                                                       |
-|----------------------|----------------------------------------------------------------------------------------------|
-| `-Ptests=<selector>` | Runs only the tests the selector matches. A selector without a namespace gets `*:` in front. |
-| `-Prealtime`         | Runs the tests in real time.                                                                 |
-| `-Pshow`             | Shows the client window, which is hidden by default.                                         |
-| `-Pcompare=<path>`   | Compares the measurements against the file at the given path.                                |
-| `-Pgoldens=<dir>`    | The directory golden images are written into. Overrides `nexusGametest.goldens` for the run. |
-| `-Precord`           | Records golden images instead of comparing against them.                                     |
-| `-Pxvfb`             | Runs the client on a virtual X screen. Needs Xvfb installed.                                 |
+| Property             | Effect                                                                                        |
+|----------------------|-----------------------------------------------------------------------------------------------|
+| `-Ptests=<selector>` | Runs only the tests the selector matches. A selector without a namespace gets `*:` in front.  |
+| `-Prealtime`         | Runs the tests in real time.                                                                  |
+| `-Pshow`             | Shows the client window, which is hidden by default.                                          |
+| `-Pcompare=<path>`   | Compares the measurements against the file at the given path.                                 |
+| `-Pgoldens=<dir>`    | The directory golden images are written into. Overrides `nexus.gametest.goldens` for the run. |
+| `-Precord`           | Records golden images instead of comparing against them.                                      |
+| `-Pxvfb`             | Runs the client on a virtual X screen. Needs Xvfb installed.                                  |
 
 Paths are relative to the project directory.
 

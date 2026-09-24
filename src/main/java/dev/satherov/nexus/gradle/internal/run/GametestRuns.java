@@ -2,7 +2,7 @@ package dev.satherov.nexus.gradle.internal.run;
 
 import lombok.experimental.UtilityClass;
 
-import dev.satherov.nexus.gradle.api.NexusGametestExtension;
+import dev.satherov.nexus.gradle.api.GametestExtension;
 import dev.satherov.nexus.gradle.internal.client.XvfbDisplay;
 
 import net.neoforged.moddevgradle.dsl.NeoForgeExtension;
@@ -64,7 +64,7 @@ public class GametestRuns {
     /// @param neoForge  The moddev extension of the project.
     /// @param extension The gametest extension of the project.
     ///
-    public static void register(Project project, NeoForgeExtension neoForge, NexusGametestExtension extension) {
+    public static void register(Project project, NeoForgeExtension neoForge, GametestExtension extension) {
         RunModel server = neoForge.getRuns().create("gameTestServer");
         server.getType().set("gameTestServer");
         server.getGameDirectory().set(project.getLayout().getProjectDirectory().dir("runs/gametest"));
@@ -103,7 +103,7 @@ public class GametestRuns {
     /// @param run       The run to configure.
     /// @param side      The side the run serves, `server` or `client`.
     ///
-    private static void configure(Project project, NexusGametestExtension extension, RunModel run, String side) {
+    private static void configure(Project project, GametestExtension extension, RunModel run, String side) {
         Provider<Directory> reports = project.getLayout().getBuildDirectory().dir("reports/gametest/" + side);
         run.getSourceSet().set(extension.getSourceSet());
         run.getSystemProperties().put(GametestRuns.REPORT, reports.map(directory -> directory.file(side + ".xml").getAsFile().getAbsolutePath()));

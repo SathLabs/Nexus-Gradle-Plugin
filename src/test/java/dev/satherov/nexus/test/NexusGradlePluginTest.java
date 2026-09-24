@@ -1,7 +1,8 @@
 package dev.satherov.nexus.test;
 
 import dev.satherov.nexus.gradle.NexusGradlePlugin;
-import dev.satherov.nexus.gradle.api.NexusGametestExtension;
+import dev.satherov.nexus.gradle.api.GametestExtension;
+import dev.satherov.nexus.gradle.api.NexusExtension;
 
 import net.neoforged.moddevgradle.dsl.NeoForgeExtension;
 import net.neoforged.moddevgradle.dsl.RunModel;
@@ -35,7 +36,7 @@ public class NexusGradlePluginTest {
     public void modIdDefaultsToOnlyMod() {
         Project project = NexusGradlePluginTest.project(Map.of());
         NexusGradlePluginTest.neoForge(project).getMods().create("sample");
-        Assertions.assertThat(NexusGradlePluginTest.extension(project).getModId().get()).isEqualTo("sample");
+        Assertions.assertThat(NexusGradlePluginTest.gametest(project).getModId().get()).isEqualTo("sample");
     }
 
     @Test
@@ -43,33 +44,33 @@ public class NexusGradlePluginTest {
         Project project = NexusGradlePluginTest.project(Map.of());
         NexusGradlePluginTest.neoForge(project).getMods().create("sample");
         NexusGradlePluginTest.neoForge(project).getMods().create("other");
-        Assertions.assertThat(NexusGradlePluginTest.extension(project).getModId().isPresent()).isFalse();
+        Assertions.assertThat(NexusGradlePluginTest.gametest(project).getModId().isPresent()).isFalse();
     }
 
     @Test
     public void sourceSetDefaultsToCreatedGametestSet() {
         Project project = NexusGradlePluginTest.project(Map.of());
         SourceSet gametest = project.getExtensions().getByType(SourceSetContainer.class).getByName("gametest");
-        Assertions.assertThat(NexusGradlePluginTest.extension(project).getSourceSet().get()).isSameAs(gametest);
+        Assertions.assertThat(NexusGradlePluginTest.gametest(project).getSourceSet().get()).isSameAs(gametest);
     }
 
     @Test
     public void goldensDefaultToResourcesOfSourceSet() {
         Project project = NexusGradlePluginTest.project(Map.of());
-        Assertions.assertThat(NexusGradlePluginTest.extension(project).getGoldens().get().getAsFile()).isEqualTo(project.file("src/gametest/resources"));
+        Assertions.assertThat(NexusGradlePluginTest.gametest(project).getGoldens().get().getAsFile()).isEqualTo(project.file("src/gametest/resources"));
     }
 
     @Test
     public void goldensFollowChosenSourceSet() {
         Project project = NexusGradlePluginTest.project(Map.of());
-        NexusGametestExtension extension = NexusGradlePluginTest.extension(project);
-        extension.getSourceSet().set(project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME));
-        Assertions.assertThat(extension.getGoldens().get().getAsFile()).isEqualTo(project.file("src/main/resources"));
+        GametestExtension gametest = NexusGradlePluginTest.gametest(project);
+        gametest.getSourceSet().set(project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME));
+        Assertions.assertThat(gametest.getGoldens().get().getAsFile()).isEqualTo(project.file("src/main/resources"));
     }
 
     @Test
     public void harnessDefaultsToVersionlessNexusWithGametestCapability() {
-        Dependency harness = NexusGradlePluginTest.extension(NexusGradlePluginTest.project(Map.of())).getHarness().get();
+        Dependency harness = NexusGradlePluginTest.gametest(NexusGradlePluginTest.project(Map.of())).getHarness().get();
         Assertions.assertThat(harness).isInstanceOfSatisfying(ExternalModuleDependency.class, dependency -> {
             Assertions.assertThat(dependency.getGroup()).isEqualTo("dev.satherov.nexus");
             Assertions.assertThat(dependency.getName()).isEqualTo("nexus");
@@ -80,6 +81,13 @@ public class NexusGradlePluginTest {
                     .asString()
                     .contains("dev.satherov.nexus:nexus-gametest");
         });
+    }
+
+    @Test
+    public void gametestActionConfiguresNestedSettings() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        NexusGradlePluginTest.nexus(project).gametest(gametest -> gametest.getModId().set("sample"));
+        Assertions.assertThat(NexusGradlePluginTest.gametest(project).getModId().get()).isEqualTo("sample");
     }
 
     @Test
@@ -100,10 +108,60 @@ public class NexusGradlePluginTest {
     }
 
     @Test
+    public void runsDefaultToDirectoryNamedAfterThem() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        RunModel client = NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        Assertions.assertThat(client.getGameDirectory().get().getAsFile()).isEqualTo(project.file("runs/client"));
+    }
+
+    @Test
+    public void runsCreatedBeforePluginGetDefaults() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPluginManager().apply("net.neoforged.moddev");
+        RunModel client = NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        project.getPluginManager().apply(NexusGradlePlugin.class);
+        Assertions.assertThat(client.getGameDirectory().get().getAsFile()).isEqualTo(project.file("runs/client"));
+        Assertions.assertThat(client.getSystemProperties().get()).containsEntry("nexus.dev.ops", "Dev");
+    }
+
+    @Test
+    public void explicitGameDirectoryWins() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        RunModel client = NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        client.getGameDirectory().set(project.file("elsewhere"));
+        Assertions.assertThat(client.getGameDirectory().get().getAsFile()).isEqualTo(project.file("elsewhere"));
+    }
+
+    @Test
+    public void opsDefaultToDevOnEveryRun() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        for (String name : List.of("client", "gameTestServer", "gameTestClient")) {
+            Assertions.assertThat(NexusGradlePluginTest.run(project, name).getSystemProperties().get()).containsEntry("nexus.dev.ops", "Dev");
+        }
+    }
+
+    @Test
+    public void emptyOpsGiveEmptyProperty() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        RunModel client = NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        NexusGradlePluginTest.nexus(project).getOps().set(List.of());
+        Assertions.assertThat(client.getSystemProperties().get()).containsEntry("nexus.dev.ops", "");
+    }
+
+    @Test
+    public void opsAreJoinedWithCommas() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        RunModel client = NexusGradlePluginTest.neoForge(project).getRuns().create("client");
+        NexusGradlePluginTest.nexus(project).getOps().set(List.of("A", "B"));
+        Assertions.assertThat(client.getSystemProperties().get()).containsEntry("nexus.dev.ops", "A,B");
+    }
+
+    @Test
     public void runsFollowSourceSetOfExtension() {
         Project project = NexusGradlePluginTest.project(Map.of());
         SourceSet main = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-        NexusGradlePluginTest.extension(project).getSourceSet().set(main);
+        NexusGradlePluginTest.gametest(project).getSourceSet().set(main);
         Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestServer").getSourceSet().get()).isSameAs(main);
         Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSourceSet().get()).isSameAs(main);
     }
@@ -161,22 +219,22 @@ public class NexusGradlePluginTest {
     @Test
     public void missingPropertiesReachNoRun() {
         Project project = NexusGradlePluginTest.project(Map.of());
-        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestServer").getSystemProperties().get()).containsOnlyKeys("neoforge.enableGameTest", "nexus.gametest.report");
-        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).containsOnlyKeys("nexus.gametest.report", "nexus.gametest.goldens");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestServer").getSystemProperties().get()).containsOnlyKeys("neoforge.enableGameTest", "nexus.gametest.report", "nexus.dev.ops");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).containsOnlyKeys("nexus.gametest.report", "nexus.gametest.goldens", "nexus.dev.ops");
     }
 
     @Test
     public void clientGoldensDefaultToExtension() {
         Project project = NexusGradlePluginTest.project(Map.of());
         File goldens = project.file("goldens");
-        NexusGradlePluginTest.extension(project).getGoldens().set(goldens);
+        NexusGradlePluginTest.gametest(project).getGoldens().set(goldens);
         Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", goldens.getAbsolutePath());
     }
 
     @Test
     public void clientGoldensComeFromProperty() {
         Project project = NexusGradlePluginTest.project(Map.of("goldens", "given"));
-        NexusGradlePluginTest.extension(project).getGoldens().set(project.file("goldens"));
+        NexusGradlePluginTest.gametest(project).getGoldens().set(project.file("goldens"));
         Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", project.file("given").getAbsolutePath());
     }
 
@@ -196,7 +254,7 @@ public class NexusGradlePluginTest {
         Assertions.assertThat(configurations.getByName("gametestImplementation").getExtendsFrom()).contains(configurations.getByName("implementation"));
         Assertions.assertThat(configurations.getByName("gametestCompileOnly").getExtendsFrom()).contains(configurations.getByName("compileOnly"));
         Assertions.assertThat(configurations.getByName("gametestRuntimeOnly").getExtendsFrom()).contains(configurations.getByName("runtimeOnly"));
-        Assertions.assertThat(configurations.getByName("gametestImplementation").getDependencies()).contains(NexusGradlePluginTest.extension(project).getHarness().get());
+        Assertions.assertThat(configurations.getByName("gametestImplementation").getDependencies()).contains(NexusGradlePluginTest.gametest(project).getHarness().get());
     }
 
     @Test
@@ -209,7 +267,7 @@ public class NexusGradlePluginTest {
     @Test
     public void evaluationAddsSourceSetToChosenMod() {
         Project project = NexusGradlePluginTest.project(Map.of());
-        NexusGradlePluginTest.extension(project).getModId().set("other");
+        NexusGradlePluginTest.gametest(project).getModId().set("other");
         NexusGradlePluginTest.evaluate(project, "sample", "other");
         SourceSet gametest = project.getExtensions().getByType(SourceSetContainer.class).getByName("gametest");
         Assertions.assertThat(NexusGradlePluginTest.neoForge(project).getMods().getByName("other").getModSourceSets().get()).containsExactly(gametest);
@@ -220,7 +278,7 @@ public class NexusGradlePluginTest {
     public void failsAfterEvaluationWithoutModId() {
         Assertions.assertThatThrownBy(NexusGradlePluginTest::evaluated)
                 .rootCause()
-                .hasMessage("Could not add gametests to any mod, 'nexusGametest.modId' must be specified because moddev knows '0' mods instead of exactly one.");
+                .hasMessage("Could not add gametests to any mod, 'nexus.gametest.modId' must be specified because moddev knows '0' mods instead of exactly one.");
     }
 
     @Test
@@ -273,8 +331,12 @@ public class NexusGradlePluginTest {
         return project;
     }
 
-    private static NexusGametestExtension extension(Project project) {
-        return project.getExtensions().getByType(NexusGametestExtension.class);
+    private static NexusExtension nexus(Project project) {
+        return project.getExtensions().getByType(NexusExtension.class);
+    }
+
+    private static GametestExtension gametest(Project project) {
+        return NexusGradlePluginTest.nexus(project).getGametest();
     }
 
     private static NeoForgeExtension neoForge(Project project) {

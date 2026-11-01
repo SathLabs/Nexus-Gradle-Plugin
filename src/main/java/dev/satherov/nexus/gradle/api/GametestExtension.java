@@ -1,5 +1,7 @@
 package dev.satherov.nexus.gradle.api;
 
+import org.gradle.api.GradleException;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
@@ -50,4 +52,15 @@ public abstract class GametestExtension {
     /// @return The harness dependency added to the source set.
     ///
     public abstract Property<Dependency> getHarness();
+    
+    ///
+    /// The extra client gametest runs, one run per entry.
+    ///
+    /// Each entry gets its run as soon as it is added. Entries have to be added before the project is evaluated.
+    ///
+    /// If an entry has an empty name, adding it will fail the build with a [GradleException].
+    ///
+    /// @return The extra client gametest runs.
+    ///
+    public abstract NamedDomainObjectContainer<ClientRun> getClients();
 }

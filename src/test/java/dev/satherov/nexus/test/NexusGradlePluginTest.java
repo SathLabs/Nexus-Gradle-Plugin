@@ -1,6 +1,7 @@
 package dev.satherov.nexus.test;
 
 import dev.satherov.nexus.gradle.NexusGradlePlugin;
+import dev.satherov.nexus.gradle.api.ClientRun;
 import dev.satherov.nexus.gradle.api.GametestExtension;
 import dev.satherov.nexus.gradle.api.NexusExtension;
 
@@ -9,6 +10,7 @@ import net.neoforged.moddevgradle.dsl.RunModel;
 
 import org.assertj.core.api.Assertions;
 import org.gradle.api.Action;
+import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.ConfigurationContainer;
@@ -239,6 +241,105 @@ public class NexusGradlePluginTest {
     }
 
     @Test
+    public void clientEntryRegistersItsRun() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders");
+        RunModel shaders = NexusGradlePluginTest.run(project, "gameTestClientShaders");
+        Assertions.assertThat(shaders.getType().get()).isEqualTo("client");
+        Assertions.assertThat(shaders.getMainClass().get()).isEqualTo("dev.satherov.nexus.gametest.GametestClient");
+        Assertions.assertThat(shaders.getSourceSet().get().getName()).isEqualTo("gameTestClientShaders");
+        Assertions.assertThat(shaders.getGameDirectory().get().getAsFile()).isEqualTo(project.file("runs/gametest-client-shaders"));
+        Assertions.assertThat(shaders.getSystemProperties().get()).containsEntry("nexus.gametest.report", project.file("build/reports/gametest/client-shaders/client-shaders.xml").getAbsolutePath());
+    }
+
+    @Test
+    public void clientEntrySystemPropertiesReachOnlyItsRun() {
+        Project project = NexusGradlePluginTest.project(Map.of("tests", "sample"));
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders").getSystemProperties().put("sample.shader", "glow");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClientShaders").getSystemProperties().get())
+                .containsEntry("sample.shader", "glow")
+                .containsEntry("nexus.gametest.tests", "*:sample")
+                .containsEntry("nexus.dev.ops", "Dev");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).doesNotContainKey("sample.shader");
+    }
+
+    @Test
+    public void clientEntryGoldensDefaultInsideExtensionGoldens() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        ClientRun shaders = NexusGradlePluginTest.gametest(project).getClients().create("shaders");
+        NexusGradlePluginTest.gametest(project).getGoldens().set(project.file("goldens"));
+        Assertions.assertThat(shaders.getGoldens().get().getAsFile()).isEqualTo(project.file("goldens/shaders"));
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClientShaders").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", project.file("goldens/shaders").getAbsolutePath());
+    }
+
+    @Test
+    public void clientEntryGoldensFollowPropertyGoldens() {
+        Project project = NexusGradlePluginTest.project(Map.of("goldens", "given"));
+        NexusGradlePluginTest.gametest(project).getGoldens().set(project.file("goldens"));
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders");
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClientShaders").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", project.file("given/shaders").getAbsolutePath());
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClient").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", project.file("given").getAbsolutePath());
+    }
+
+    @Test
+    public void explicitClientEntryGoldensWin() {
+        Project project = NexusGradlePluginTest.project(Map.of("goldens", "given"));
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders", shaders -> shaders.getGoldens().set(project.file("elsewhere")));
+        Assertions.assertThat(NexusGradlePluginTest.run(project, "gameTestClientShaders").getSystemProperties().get()).containsEntry("nexus.gametest.goldens", project.file("elsewhere").getAbsolutePath());
+    }
+
+    @Test
+    public void clientEntryModsReachOnlyItsRun() throws IOException {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        List<String> jars = List.of("iris-1.jar", "sodium-2.jar", "extra-3.jar");
+        Files.createDirectories(project.file("mods").toPath());
+        for (String jar : jars) {
+            Files.createFile(project.file("mods/" + jar).toPath());
+        }
+
+        project.getRepositories().flatDir(repository -> repository.dirs(project.file("mods")));
+        Files.writeString(project.file("clients.gradle").toPath(), """
+                def sodium = provider { dependencyFactory.create('sample:sodium:2') }
+                nexus {
+                    gametest {
+                        clients {
+                            shaders {
+                                mods 'sample:iris:1'
+                                mods sodium
+                                mods.add('sample:extra:3')
+                            }
+                            other { }
+                        }
+                    }
+                }
+                """);
+        project.apply(Map.of("from", "clients.gradle"));
+        Assertions.assertThat(NexusGradlePluginTest.classpath(project, "gameTestClientShaders")).containsAll(jars);
+        for (String name : List.of("gameTestServer", "gameTestClient", "gameTestClientOther")) {
+            Assertions.assertThat(NexusGradlePluginTest.classpath(project, name)).doesNotContainAnyElementsOf(jars);
+        }
+    }
+
+    @Test
+    public void clientEntryModsPassEvaluation() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders").getMods().add("sample:iris:1");
+        NexusGradlePluginTest.evaluate(project, "sample");
+        SourceSet shaders = NexusGradlePluginTest.run(project, "gameTestClientShaders").getSourceSet().get();
+        Assertions.assertThat(project.getConfigurations().getByName(shaders.getRuntimeClasspathConfigurationName()).getAllDependencies())
+                .extracting(Dependency::getName)
+                .contains("iris");
+    }
+
+    @Test
+    public void clientEntryWithEmptyNameFails() {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        Assertions.assertThatThrownBy(() -> NexusGradlePluginTest.gametest(project).getClients().create(""))
+                .isInstanceOf(GradleException.class)
+                .hasMessage("Could not set up a client gametest run, an entry of 'nexus.gametest.clients' has an empty name");
+    }
+
+    @Test
     public void failsAfterEvaluationWithoutModdev() {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply(NexusGradlePlugin.class);
@@ -301,6 +402,19 @@ public class NexusGradlePluginTest {
         Assertions.assertThat(reports).isEmptyDirectory();
     }
 
+    @Test
+    public void clientEntryTaskPreparesItsDirectory() throws IOException {
+        Project project = NexusGradlePluginTest.project(Map.of());
+        NexusGradlePluginTest.gametest(project).getClients().create("shaders");
+        NexusGradlePluginTest.evaluate(project, "sample");
+        File stale = project.file("build/reports/gametest/client-shaders/stale.json");
+        Files.createDirectories(stale.getParentFile().toPath());
+        Files.writeString(stale.toPath(), "{}");
+        NexusGradlePluginTest.runFirstActions(project, "runGameTestClientShaders");
+        Assertions.assertThat(stale).doesNotExist();
+        Assertions.assertThat(stale.getParentFile()).isDirectory();
+    }
+
     private static void runFirstActions(Project project, String name) {
         Task task = project.getTasks().getByName(name);
         List<Action<? super Task>> actions = task.getActions();
@@ -329,6 +443,12 @@ public class NexusGradlePluginTest {
 
         ((ProjectInternal) project).evaluate();
         return project;
+    }
+
+    private static List<String> classpath(Project project, String run) {
+        return NexusGradlePluginTest.run(project, run).getSourceSet().get().getRuntimeClasspath().getFiles().stream()
+                .map(File::getName)
+                .toList();
     }
 
     private static NexusExtension nexus(Project project) {

@@ -22,7 +22,7 @@ In `build.gradle`:
 ```groovy
 plugins {
     id 'net.neoforged.moddev' version '2.0.147'
-    id 'dev.satherov.nexus.gradle-plugin' version '1.0.0'
+    id 'dev.satherov.nexus.gradle-plugin' version '1.1.0'
 }
 ```
 
@@ -48,6 +48,20 @@ nexus {
         harness = dependencies.create('dev.satherov.nexus:nexus:1.0.0') {
             capabilities {
                 requireCapability('dev.satherov.nexus:nexus-gametest')
+            }
+        }
+
+        // Extra client runs, one per entry. The entry shaders adds the task runGameTestClientShaders.
+        clients {
+            shaders {
+                // The mods on the classpath of this run only.
+                mods libs.sodium
+
+                // The system properties of this run, beside the shared ones.
+                systemProperties.put('key', 'value')
+
+                // The directory the goldens of this run are read from and recorded into.
+                goldens = file('src/gametest/goldens/shaders')
             }
         }
     }
@@ -88,6 +102,30 @@ The gametest harness itself has no version and takes that of the project's `dev.
 - `harness`: 
   - The harness dependency.
   - Defaults to `dev.satherov.nexus:nexus` with the `dev.satherov.nexus:nexus-gametest` capability.
+
+#### Client runs
+
+The `clients` block holds extra client runs, one per entry. Every run gets the same `-P` properties as
+`runGameTestClient`, the players to op and the virtual display under `-Pxvfb`. An entry `<name>` gets:
+
+- The task `runGameTestClient<Name>`, with the first letter upper-cased.
+- The run directory `runs/gametest-client-<name>`.
+- The report side `client-<name>`, with its report at `build/reports/gametest/client-<name>/client-<name>.xml`.
+- The goldens root `<name>` inside the `-Pgoldens` path, or inside `goldens` if the property is not given.
+- The source set `gameTestClient<Name>`, whose runtime classpath is the gametest source set's plus the mods, so the
+  mods reach that run only.
+
+**Properties:**
+
+- `mods`:
+  - The mods on the runtime classpath of the run, as a coordinate string, a version catalog alias or a dependency.
+  - Empty by default.
+- `systemProperties`:
+  - The system properties the run receives beside the shared ones. A key the plugin already set on the run is replaced.
+  - Empty by default.
+- `goldens`:
+  - The directory the goldens of the run are read from and recorded into.
+  - Defaults to the goldens root of the entry.
 
 ## Gametests
 
